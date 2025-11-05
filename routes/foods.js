@@ -34,14 +34,15 @@ router.post('/', async(req, res) => {
     const food = await prisma.foods.create({
       data: { 
         name: req.body.name,
-        kcal: req.body.kcal,
-        carbs: req.body.carbs,
-        protein: req.body.protein,
-        fat: req.body.fat
+        kcal: req.body.kcal != null ? parseInt(req.body.kcal) : undefined,
+        carbs: req.body.carbs != null ? parseFloat(req.body.carbs) : undefined,
+        protein: req.body.protein != null ? parseFloat(req.body.protein) : undefined,
+        fat: req.body.fat != null ? parseFloat(req.body.fat) : undefined
       }
     });
     res.json(food);
   } catch (error) {
+    console.error('POST /foods error:', error);
     res.status(500).json({ error: error.message });
   }
 })
@@ -80,15 +81,16 @@ router.put('/:id', async(req, res) => {
       where: { food_id: parseInt(foodId) },
       data: {
         name: req.body.name,
-        kcal: req.body.kcal,
-        carbs: req.body.carbs,
-        protein: req.body.protein,
-        fat: req.body.fat
+        kcal: req.body.kcal != null ? parseInt(req.body.kcal) : undefined,
+        carbs: req.body.carbs != null ? parseFloat(req.body.carbs) : undefined,
+        protein: req.body.protein != null ? parseFloat(req.body.protein) : undefined,
+        fat: req.body.fat != null ? parseFloat(req.body.fat) : undefined
       }
     });
 
     res.json(updated);
   } catch (error) {
+    console.error('PUT /foods/:id error:', error);
     res.status(500).json({ error: error.message });
   }
 })

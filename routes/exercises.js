@@ -16,6 +16,7 @@ router.get('/', async(req, res) => {
     const exercises = await prisma.exercises.findMany();
     res.json(exercises);
   } catch (error) {
+    console.error('POST /exercises error:', error);
     res.status(500).json({ error: error.message });
   }
 })
@@ -38,6 +39,7 @@ router.post('/', async(req, res) => {
     });
     res.json(exercise);
   } catch (error) {
+    console.error('PUT /exercises/:id error:', error);
     res.status(500).json({ error: error.message });
   }
 })

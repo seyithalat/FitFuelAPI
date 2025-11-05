@@ -55,6 +55,7 @@ model users {
   created_at DateTime   @default(now()) @db.DateTime(0)
   meals      meals[]
   workouts   workouts[]
+  userpreferences userpreferences?
 }
 
 model workouts {
@@ -68,4 +69,20 @@ model workouts {
   users      users     @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction, map: "Workouts_user_id_fkey")
 
   @@index([user_id], map: "Workouts_user_id_fkey")
+}
+
+// Preferences stored in DB (one-to-one per user)
+model userpreferences {
+  user_pref_id    Int    @id @default(autoincrement())
+  user_id         Int    @unique
+  kcal_target     Int    @default(2000)
+  protein_target  Int    @default(120)
+  carbs_target    Int    @default(200)
+  fat_target      Int    @default(70)
+  liked_exercises Json?
+  disliked_foods  Json?
+  days_per_week   Int?   @default(3)
+  users           users  @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id])
 }

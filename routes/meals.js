@@ -40,12 +40,12 @@ router.post('/', async(req, res) => {
 
     const meal = await prisma.meals.create({
       data: {
-        user_id: req.body.user_id,
+        user_id: req.body.user_id != null ? parseInt(req.body.user_id) : undefined,
         date: req.body.date ? new Date(req.body.date) : undefined,
         mealitems: {
           create: items.map(i => ({
-            food_id: i.food_id,
-            quantity: i.quantity
+            food_id: i.food_id != null ? parseInt(i.food_id) : undefined,
+            quantity: i.quantity != null ? parseInt(i.quantity) : undefined
           }))
         }
       },
@@ -93,7 +93,7 @@ router.put('/:id', async(req, res) => {
     const updated = await prisma.meals.update({
       where: { meal_id: parseInt(mealId) },
       data: {
-        user_id: req.body.user_id,
+        user_id: req.body.user_id != null ? parseInt(req.body.user_id) : undefined,
         date: req.body.date ? new Date(req.body.date) : undefined
       }
     });

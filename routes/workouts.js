@@ -32,11 +32,11 @@ router.post('/', async(req, res) => {
     
     const workout = await prisma.workouts.create({
       data: { 
-        user_id: req.body.user_id,
+        user_id: req.body.user_id != null ? parseInt(req.body.user_id) : undefined,
         exercise: req.body.exercise,   // bijv. "Bench Press"
-        sets: req.body.sets,           // bijv. 3
-        reps: req.body.reps,           // bijv. 8
-        weight: req.body.weight,       // bijv. 60
+        sets: req.body.sets != null ? parseInt(req.body.sets) : undefined,           // bijv. 3
+        reps: req.body.reps != null ? parseInt(req.body.reps) : undefined,           // bijv. 8
+        weight: req.body.weight != null ? parseFloat(req.body.weight) : undefined,   // bijv. 60
         date: req.body.date ? new Date(req.body.date) : undefined
       }
     });
@@ -79,11 +79,11 @@ router.put('/:id', async(req, res) => {
     const updated = await prisma.workouts.update({
       where: { workout_id: parseInt(workoutId) },
       data: { 
-        user_id: req.body.user_id,
+        user_id: req.body.user_id != null ? parseInt(req.body.user_id) : undefined,
         exercise: req.body.exercise,
-        sets: req.body.sets,
-        reps: req.body.reps,
-        weight: req.body.weight,
+        sets: req.body.sets != null ? parseInt(req.body.sets) : undefined,
+        reps: req.body.reps != null ? parseInt(req.body.reps) : undefined,
+        weight: req.body.weight != null ? parseFloat(req.body.weight) : undefined,
         date: req.body.date ? new Date(req.body.date) : undefined
       }
     });
