@@ -6,6 +6,7 @@ var router = express.Router();
 
 const { PrismaClient } = require('../generated/prisma');
 const prisma = new PrismaClient();
+const jwt = require('jsonwebtoken');
 
 // -------------------------
 // [GET] Users 
@@ -92,5 +93,35 @@ router.put('/:id', async(req, res) => {
     res.status(500).json({ error: error.message });
   }
 })
+// -------------------------
+// [POST] Users login
+// Body: { email, password }
+// Return: { token }
+// -------------------------
+router.post('/login', async (req, res) => {
+  const email = req.body.email;
+  const password = req.body.password;
+
+  const user = await prisma.users.findFirst({
+    where: {
+      email: email,
+      password: password    // plain text, zelfde als je huidige registratie
+    }
+  });
+
+  if (!user) {
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
+
+  const secret = process.env.JWT_SECRET || 'devsecret';
+  const token = jwt.sign(
+    { user_id: user.user_id, email: user.email },
+    secret,
+    { expiresIn: '7d' }
+  );
+
+  res.json({ token });
+});
 
 module.exports = router;
+ 

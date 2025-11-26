@@ -6,7 +6,7 @@ var router = express.Router();
 
 const { PrismaClient } = require('../generated/prisma');
 const prisma = new PrismaClient();
-
+const auth = require('../middleware/auth'); 
 // -------------------------
 // [GET] Meals 
 // return array of meals (incl. items + foods + users)
@@ -30,35 +30,37 @@ router.get('/', async(req, res) => {
 // return created row (with created items)
 // body.items: [{ food_id, quantity }]
 // -------------------------
-router.post('/', async(req, res) => {
+router.post('/', auth, async (req, res) => {
   try {
-    if (!req.body) {
-      return res.status(400).json({ error: 'Request body is missing. Make sure to send JSON data with Content-Type: application/json' });
-    }
-    
+    console.log('req.user:', req.user);
+    console.log('req.body:', req.body);
+
     const items = Array.isArray(req.body.items) ? req.body.items : [];
 
     const meal = await prisma.meals.create({
       data: {
-        user_id: req.body.user_id != null ? parseInt(req.body.user_id) : undefined,
+        user_id: req.user.user_id,                       // <-- user uit token
         date: req.body.date ? new Date(req.body.date) : undefined,
         mealitems: {
           create: items.map(i => ({
-            food_id: i.food_id != null ? parseInt(i.food_id) : undefined,
-            quantity: i.quantity != null ? parseInt(i.quantity) : undefined
+            food_id: i.food_id,
+            quantity: i.quantity
           }))
         }
       },
       include: {
-        mealitems: { include: { foods: true } }
+        mealitems: {
+          include: { foods: true }
+        }
       }
     });
 
     res.json(meal);
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: error.message });
   }
-})
+});
 
 // -------------------------
 // [DELETE] Meals 
@@ -82,12 +84,8 @@ router.delete('/:id', async(req, res) => {
 // [PUT] Meals 
 // return updated row (date only, items beheer je met aparte endpoints of opnieuw posten)
 // -------------------------
-router.put('/:id', async(req, res) => {
+router.put('/:id', async (req, res) => {
   try {
-    if (!req.body) {
-      return res.status(400).json({ error: 'Request body is missing. Make sure to send JSON data with Content-Type: application/json' });
-    }
-    
     const mealId = req.params.id;
 
     const updated = await prisma.meals.update({
@@ -102,6 +100,7 @@ router.put('/:id', async(req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-})
+});
 
 module.exports = router;
+
