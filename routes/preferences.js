@@ -13,7 +13,7 @@ const prisma = new PrismaClient();
 router.get('/:userId', async (req, res) => {
   try {
     const userId = parseInt(req.params.userId);
-    const row = await prisma.userpreferences.findUnique({ where: { user_id: userId } });
+    const row = await prisma.preferences.findFirst({ where: { user_id: userId } });
     if (!row) {
       return res.json({
         user_id: userId,
@@ -27,14 +27,22 @@ router.get('/:userId', async (req, res) => {
       });
     }
 
+    // Parse liked_exercises and disliked_foods from strings to arrays
+    const likedExercises = row.liked_exercises 
+      ? row.liked_exercises.split(',').map(s => s.trim()).filter(Boolean)
+      : [];
+    const dislikedFoods = row.disliked_foods
+      ? row.disliked_foods.split(',').map(s => s.trim()).filter(Boolean)
+      : [];
+
     res.json({
       user_id: userId,
       preferences: {
-        kcal_target: row.kcal_target,
-        macros: { protein: row.protein_target, carbs: row.carbs_target, fat: row.fat_target },
-        liked_exercises: row.liked_exercises || [],
-        disliked_foods: row.disliked_foods || [],
-        days_per_week: row.days_per_week ?? 3
+        kcal_target: 2000, // Default since not in schema
+        macros: { protein: 120, carbs: 200, fat: 70 }, // Default since not in schema
+        liked_exercises: likedExercises,
+        disliked_foods: dislikedFoods,
+        days_per_week: 3 // Default since not in schema
       }
     });
   } catch (error) {
@@ -49,45 +57,51 @@ router.get('/:userId', async (req, res) => {
 router.put('/:userId', async (req, res) => {
   try {
     const userId = parseInt(req.params.userId);
-    const kcal_target = req.body.kcal_target ?? 2000;
-    const protein = req.body.macros?.protein ?? 120;
-    const carbs = req.body.macros?.carbs ?? 200;
-    const fat = req.body.macros?.fat ?? 70;
-    const liked = Array.isArray(req.body.liked_exercises) ? req.body.liked_exercises : [];
-    const disliked = Array.isArray(req.body.disliked_foods) ? req.body.disliked_foods : [];
-    const days = req.body.days_per_week ?? 3;
+    const liked = Array.isArray(req.body.liked_exercises) 
+      ? req.body.liked_exercises.join(',') 
+      : (req.body.liked_exercises || '');
+    const disliked = Array.isArray(req.body.disliked_foods) 
+      ? req.body.disliked_foods.join(',') 
+      : (req.body.disliked_foods || '');
 
-    const saved = await prisma.userpreferences.upsert({
-      where: { user_id: userId },
-      update: {
-        kcal_target,
-        protein_target: protein,
-        carbs_target: carbs,
-        fat_target: fat,
-        liked_exercises: liked,
-        disliked_foods: disliked,
-        days_per_week: days
-      },
-      create: {
-        user_id: userId,
-        kcal_target,
-        protein_target: protein,
-        carbs_target: carbs,
-        fat_target: fat,
-        liked_exercises: liked,
-        disliked_foods: disliked,
-        days_per_week: days
-      }
-    });
+    // Check if preferences exist
+    const existing = await prisma.preferences.findFirst({ where: { user_id: userId } });
+    
+    let saved;
+    if (existing) {
+      saved = await prisma.preferences.update({
+        where: { preference_id: existing.preference_id },
+        data: {
+          liked_exercises: liked,
+          disliked_foods: disliked
+        }
+      });
+    } else {
+      saved = await prisma.preferences.create({
+        data: {
+          user_id: userId,
+          liked_exercises: liked,
+          disliked_foods: disliked
+        }
+      });
+    }
+
+    // Parse back to arrays for response
+    const likedExercises = saved.liked_exercises 
+      ? saved.liked_exercises.split(',').map(s => s.trim()).filter(Boolean)
+      : [];
+    const dislikedFoods = saved.disliked_foods
+      ? saved.disliked_foods.split(',').map(s => s.trim()).filter(Boolean)
+      : [];
 
     res.json({
       user_id: userId,
       preferences: {
-        kcal_target: saved.kcal_target,
-        macros: { protein: saved.protein_target, carbs: saved.carbs_target, fat: saved.fat_target },
-        liked_exercises: saved.liked_exercises || [],
-        disliked_foods: saved.disliked_foods || [],
-        days_per_week: saved.days_per_week ?? 3
+        kcal_target: 2000, // Default since not in schema
+        macros: { protein: 120, carbs: 200, fat: 70 }, // Default since not in schema
+        liked_exercises: likedExercises,
+        disliked_foods: dislikedFoods,
+        days_per_week: 3 // Default since not in schema
       }
     });
   } catch (error) {

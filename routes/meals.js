@@ -15,7 +15,7 @@ router.get('/', async(req, res) => {
   try {
     const meals = await prisma.meals.findMany({
       include: {
-        mealitems: { include: { foods: true } },
+        meal_items: { include: { foods: true } },
         users: true
       }
     });
@@ -39,9 +39,9 @@ router.post('/', auth, async (req, res) => {
 
     const meal = await prisma.meals.create({
       data: {
-        user_id: req.user.user_id,                       // <-- user uit token
+        user_id: req.user.user_id,                       
         date: req.body.date ? new Date(req.body.date) : undefined,
-        mealitems: {
+        meal_items: {
           create: items.map(i => ({
             food_id: i.food_id,
             quantity: i.quantity
@@ -49,7 +49,7 @@ router.post('/', auth, async (req, res) => {
         }
       },
       include: {
-        mealitems: {
+        meal_items: {
           include: { foods: true }
         }
       }

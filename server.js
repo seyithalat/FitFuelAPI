@@ -1,10 +1,14 @@
 // import from node_modules
 const express = require('express')
+const cors = require('cors')
 
 // blijkbaar bestaat er een functie express(), 
 // ik ga dit toevoegen in de variable app
 // en later settings aan toe voegen
 const app = express()
+
+// CORS
+app.use(cors());
 
 // Middleware - must be before routes
 app.use(express.json());

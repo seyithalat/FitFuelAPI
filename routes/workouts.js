@@ -12,8 +12,20 @@ const auth = require('../middleware/auth');
 // return array of workouts
 // -------------------------
 router.get('/', async (req, res) => {
-  const workouts = await prisma.workouts.findMany();
-  res.json(workouts);
+  try {
+    const workouts = await prisma.workouts.findMany({
+      include: {
+        workout_exercises: {
+          include: {
+            exercises: true
+          }
+        }
+      }
+    });
+    res.json(workouts);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 // -------------------------
 // [POST] Workouts 
@@ -24,14 +36,35 @@ router.post('/', auth, async (req, res) => {
     console.log('req.user:', req.user);
     console.log('req.body:', req.body);
 
+    // Find exercise by name to get exercise_id
+    const exercise = await prisma.exercises.findFirst({
+      where: { name: req.body.exercise }
+    });
+
+    if (!exercise) {
+      return res.status(400).json({ error: `Exercise "${req.body.exercise}" not found` });
+    }
+
+    // Create workout first (just user_id and date)
     const workout = await prisma.workouts.create({
       data: {
-        user_id: req.user.user_id,                 // <-- uit JWT
-        exercise: req.body.exercise,
-        sets: Number(req.body.sets),
-        reps: Number(req.body.reps),
-        weight: Number(req.body.weight),
-        date: req.body.date ? new Date(req.body.date) : undefined
+        user_id: req.user.user_id,
+        date: req.body.date ? new Date(req.body.date) : undefined,
+        workout_exercises: {
+          create: {
+            exercise_id: exercise.exercise_id,
+            sets: Number(req.body.sets),
+            reps: Number(req.body.reps),
+            weight: Number(req.body.weight)
+          }
+        }
+      },
+      include: {
+        workout_exercises: {
+          include: {
+            exercises: true
+          }
+        }
       }
     });
     res.json(workout);
@@ -71,14 +104,11 @@ router.put('/:id', async(req, res) => {
     
     const workoutId = req.params.id;
 
+    // Only update date and user_id (exercise data is in workout_exercises table)
     const updated = await prisma.workouts.update({
       where: { workout_id: parseInt(workoutId) },
       data: { 
         user_id: req.body.user_id != null ? parseInt(req.body.user_id) : undefined,
-        exercise: req.body.exercise,
-        sets: req.body.sets != null ? parseInt(req.body.sets) : undefined,
-        reps: req.body.reps != null ? parseInt(req.body.reps) : undefined,
-        weight: req.body.weight != null ? parseFloat(req.body.weight) : undefined,
         date: req.body.date ? new Date(req.body.date) : undefined
       }
     });

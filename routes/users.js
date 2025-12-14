@@ -33,6 +33,8 @@ router.post('/', async(req, res) => {
     
     const email = req.body.email;
     const password = req.body.password;
+    // allow setting is_admin via request body (use only in a secure/admin-only context)
+    const is_admin = req.body.is_admin === true;
 
     const exists = await prisma.users.findMany({
       where: { email }
@@ -42,7 +44,7 @@ router.post('/', async(req, res) => {
       res.json({ "status": "user already in database" })
     } else {
       const newUser = await prisma.users.create({
-        data: { email, password }
+        data: { email, password, is_admin }
       });
       res.json(newUser);
     }
@@ -82,10 +84,16 @@ router.put('/:id', async(req, res) => {
     const userId = req.params.id;
     const email = req.body.email;
     const password = req.body.password;
+    const is_admin = req.body.is_admin;
+
+    const updateData = {};
+    if (typeof email !== 'undefined') updateData.email = email;
+    if (typeof password !== 'undefined') updateData.password = password;
+    if (typeof is_admin !== 'undefined') updateData.is_admin = is_admin;
 
     const updated = await prisma.users.update({
       where: { user_id: parseInt(userId) },
-      data: { email, password }
+      data: updateData
     });
 
     res.json(updated);
