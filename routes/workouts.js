@@ -11,9 +11,9 @@ const auth = require('../middleware/auth');
 // [GET] Workouts 
 // return array of workouts
 // -------------------------
-router.get('/', async (req, res) => {
+router.get('/', async (req, res, next) => {
   try {
-    const workouts = await prisma.workouts.findMany({
+    const data = await prisma.workouts.findMany({
       include: {
         workout_exercises: {
           include: {
@@ -22,7 +22,7 @@ router.get('/', async (req, res) => {
         }
       }
     });
-    res.json(workouts);
+    res.json(data);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -31,12 +31,8 @@ router.get('/', async (req, res) => {
 // [POST] Workouts 
 // return created row
 // -------------------------
-router.post('/', auth, async (req, res) => {
+router.post('/', auth, async (req, res, next) => {
   try {
-    console.log('req.user:', req.user);
-    console.log('req.body:', req.body);
-
-    // Find exercise by name to get exercise_id
     const exercise = await prisma.exercises.findFirst({
       where: { name: req.body.exercise }
     });
@@ -45,7 +41,6 @@ router.post('/', auth, async (req, res) => {
       return res.status(400).json({ error: `Exercise "${req.body.exercise}" not found` });
     }
 
-    // Create workout first (just user_id and date)
     const workout = await prisma.workouts.create({
       data: {
         user_id: req.user.user_id,
@@ -68,9 +63,8 @@ router.post('/', auth, async (req, res) => {
       }
     });
     res.json(workout);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -78,7 +72,7 @@ router.post('/', auth, async (req, res) => {
 // [DELETE] Workouts 
 // return deleted row
 // -------------------------
-router.delete('/:id', async(req, res) => {
+router.delete('/:id', async(req, res, next) => {
   try {
     const workoutId = req.params.id;
 
@@ -96,15 +90,10 @@ router.delete('/:id', async(req, res) => {
 // [PUT] Workouts 
 // return updated row
 // -------------------------
-router.put('/:id', async(req, res) => {
+router.put('/:id', async(req, res, next) => {
   try {
-    if (!req.body) {
-      return res.status(400).json({ error: 'Request body is missing. Make sure to send JSON data with Content-Type: application/json' });
-    }
-    
     const workoutId = req.params.id;
 
-    // Only update date and user_id (exercise data is in workout_exercises table)
     const updated = await prisma.workouts.update({
       where: { workout_id: parseInt(workoutId) },
       data: { 

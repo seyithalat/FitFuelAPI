@@ -12,7 +12,7 @@ const prisma = new PrismaClient();
 // Query: user_id, date=YYYY-MM-DD
 // Returns: totals for kcal, carbs, protein, fat for that day
 // -------------------------
-router.get('/calories/daily', async (req, res) => {
+router.get('/calories/daily', async (req, res, next) => {
   try {
     const userId = parseInt(req.query.user_id);
     const dateStr = req.query.date; // YYYY-MM-DD
@@ -29,11 +29,11 @@ router.get('/calories/daily', async (req, res) => {
         user_id: userId,
         date: { gte: start, lte: end }
       },
-      include: { mealitems: { include: { foods: true } } }
+      include: { meal_items: { include: { foods: true } } }
     });
 
     const totals = meals.reduce((acc, meal) => {
-      for (const item of meal.mealitems) {
+      for (const item of meal.meal_items) {
         const qty = item.quantity || 1;
         acc.kcal += (item.foods.kcal || 0) * qty;
         acc.carbs += (item.foods.carbs || 0) * qty;
@@ -54,7 +54,7 @@ router.get('/calories/daily', async (req, res) => {
 // Query: user_id, start=YYYY-MM-DD (7 days window)
 // Returns: array of { date, totals }
 // -------------------------
-router.get('/calories/weekly', async (req, res) => {
+router.get('/calories/weekly', async (req, res, next) => {
   try {
     const userId = parseInt(req.query.user_id);
     const startStr = req.query.start; // YYYY-MM-DD
@@ -63,10 +63,9 @@ router.get('/calories/weekly', async (req, res) => {
     }
 
     const start = new Date(startStr + 'T00:00:00');
-    const days = [...Array(7).keys()].map(i => new Date(start.getTime() + i * 86400000));
-
     const results = [];
-    for (const d of days) {
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(start.getTime() + i * 86400000);
       const y = d.getFullYear();
       const m = String(d.getMonth() + 1).padStart(2, '0');
       const day = String(d.getDate()).padStart(2, '0');
@@ -77,11 +76,11 @@ router.get('/calories/weekly', async (req, res) => {
 
       const meals = await prisma.meals.findMany({
         where: { user_id: userId, date: { gte: dayStart, lte: dayEnd } },
-        include: { mealitems: { include: { foods: true } } }
+        include: { meal_items: { include: { foods: true } } }
       });
 
       const totals = meals.reduce((acc, meal) => {
-        for (const item of meal.mealitems) {
+        for (const item of meal.meal_items) {
           const qty = item.quantity || 1;
           acc.kcal += (item.foods.kcal || 0) * qty;
           acc.carbs += (item.foods.carbs || 0) * qty;
@@ -103,9 +102,9 @@ router.get('/calories/weekly', async (req, res) => {
 // -------------------------
 // [GET] /analytics/workouts/1rm
 // Query: user_id, exercise
-// Returns: estimated 1RM using Epley formula = weight * (1 + reps/30)
+// Returns: estimated 1RM
 // -------------------------
-router.get('/workouts/1rm', async (req, res) => {
+router.get('/workouts/1rm', async (req, res, next) => {
   try {
     const userId = parseInt(req.query.user_id);
     const exercise = req.query.exercise;
@@ -113,20 +112,37 @@ router.get('/workouts/1rm', async (req, res) => {
       return res.status(400).json({ error: 'user_id and exercise are required' });
     }
 
-    const sets = await prisma.workouts.findMany({
-      where: { user_id: userId, exercise },
+    // eerst exercise vinden op naam
+    const exerciseRecord = await prisma.exercises.findFirst({
+      where: { name: exercise }
+    });
+
+    if (!exerciseRecord) {
+      return res.status(400).json({ error: `Exercise "${exercise}" not found` });
+    }
+
+    // workouts ophalen met workout_exercises voor deze exercise
+    const workouts = await prisma.workouts.findMany({
+      where: { user_id: userId },
+      include: {
+        workout_exercises: {
+          where: { exercise_id: exerciseRecord.exercise_id }
+        }
+      },
       orderBy: { date: 'desc' },
       take: 200
     });
 
     let best = null;
-    for (const s of sets) {
-      const reps = s.reps || 0;
-      const weight = s.weight || 0;
-      if (reps > 0 && weight > 0) {
-        const oneRm = weight * (1 + reps / 30);
-        if (!best || oneRm > best.oneRm) {
-          best = { date: s.date, weight, reps, oneRm };
+    for (const workout of workouts) {
+      for (const we of workout.workout_exercises) {
+        const reps = we.reps || 0;
+        const weight = we.weight || 0;
+        if (reps > 0 && weight > 0) {
+          const oneRm = weight * (1 + reps / 30);
+          if (!best || oneRm > best.oneRm) {
+            best = { date: workout.date, weight, reps, oneRm };
+          }
         }
       }
     }
@@ -142,5 +158,3 @@ router.get('/workouts/1rm', async (req, res) => {
 });
 
 module.exports = router;
-
-

@@ -10,7 +10,7 @@ const prisma = new PrismaClient();
 // [GET] /preferences/:userId
 // Returns preferences or empty defaults
 // -------------------------
-router.get('/:userId', async (req, res) => {
+router.get('/:userId', async (req, res, next) => {
   try {
     const userId = parseInt(req.params.userId);
     const row = await prisma.preferences.findFirst({ where: { user_id: userId } });
@@ -54,7 +54,7 @@ router.get('/:userId', async (req, res) => {
 // [PUT] /preferences/:userId
 // Body merges into existing preferences
 // -------------------------
-router.put('/:userId', async (req, res) => {
+router.put('/:userId', async (req, res, next) => {
   try {
     const userId = parseInt(req.params.userId);
     const liked = Array.isArray(req.body.liked_exercises) 
@@ -64,7 +64,11 @@ router.put('/:userId', async (req, res) => {
       ? req.body.disliked_foods.join(',') 
       : (req.body.disliked_foods || '');
 
-    // Check if preferences exist
+    const user = await prisma.users.findFirst({ where: { user_id: userId } });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
     const existing = await prisma.preferences.findFirst({ where: { user_id: userId } });
     
     let saved;

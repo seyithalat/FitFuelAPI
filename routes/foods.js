@@ -1,4 +1,3 @@
-
 // -------------------------
 // Import packages
 // -------------------------
@@ -12,7 +11,7 @@ const prisma = new PrismaClient();
 // [GET] Foods 
 // return array of foods
 // -------------------------
-router.get('/', async(req, res) => {
+router.get('/', async(req, res, next) => {
   try {
     const foods = await prisma.foods.findMany();
     res.json(foods);
@@ -25,12 +24,8 @@ router.get('/', async(req, res) => {
 // [POST] Foods 
 // return created row
 // -------------------------
-router.post('/', async(req, res) => {
+router.post('/', async(req, res, next) => {
   try {
-    if (!req.body) {
-      return res.status(400).json({ error: 'Request body is missing. Make sure to send JSON data with Content-Type: application/json' });
-    }
-    
     const food = await prisma.foods.create({
       data: { 
         name: req.body.name,
@@ -42,7 +37,6 @@ router.post('/', async(req, res) => {
     });
     res.json(food);
   } catch (error) {
-    console.error('POST /foods error:', error);
     res.status(500).json({ error: error.message });
   }
 })
@@ -51,7 +45,7 @@ router.post('/', async(req, res) => {
 // [DELETE] Foods 
 // return deleted row
 // -------------------------
-router.delete('/:id', async(req, res) => {
+router.delete('/:id', async(req, res, next) => {
   try {
     const foodId = req.params.id;
 
@@ -69,12 +63,8 @@ router.delete('/:id', async(req, res) => {
 // [PUT] Foods 
 // return updated row
 // -------------------------
-router.put('/:id', async(req, res) => {
+router.put('/:id', async(req, res, next) => {
   try {
-    if (!req.body) {
-      return res.status(400).json({ error: 'Request body is missing. Make sure to send JSON data with Content-Type: application/json' });
-    }
-    
     const foodId = req.params.id;
 
     const updated = await prisma.foods.update({
@@ -90,7 +80,6 @@ router.put('/:id', async(req, res) => {
 
     res.json(updated);
   } catch (error) {
-    console.error('PUT /foods/:id error:', error);
     res.status(500).json({ error: error.message });
   }
 })

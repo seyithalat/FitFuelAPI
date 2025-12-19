@@ -11,12 +11,11 @@ const prisma = new PrismaClient();
 // [GET] Exercises 
 // return array of exercises
 // -------------------------
-router.get('/', async(req, res) => {
+router.get('/', async(req, res, next) => {
   try {
     const exercises = await prisma.exercises.findMany();
     res.json(exercises);
   } catch (error) {
-    console.error('POST /exercises error:', error);
     res.status(500).json({ error: error.message });
   }
 })
@@ -25,12 +24,8 @@ router.get('/', async(req, res) => {
 // [POST] Exercises 
 // return created row
 // -------------------------
-router.post('/', async(req, res) => {
+router.post('/', async(req, res, next) => {
   try {
-    if (!req.body) {
-      return res.status(400).json({ error: 'Request body is missing. Make sure to send JSON data with Content-Type: application/json' });
-    }
-    
     const exercise = await prisma.exercises.create({
       data: {
         name: req.body.name,
@@ -39,7 +34,6 @@ router.post('/', async(req, res) => {
     });
     res.json(exercise);
   } catch (error) {
-    console.error('PUT /exercises/:id error:', error);
     res.status(500).json({ error: error.message });
   }
 })
@@ -48,7 +42,7 @@ router.post('/', async(req, res) => {
 // [DELETE] Exercises 
 // return deleted row
 // -------------------------
-router.delete('/:id', async(req, res) => {
+router.delete('/:id', async(req, res, next) => {
   try {
     const exerciseId = req.params.id;
 
@@ -63,15 +57,56 @@ router.delete('/:id', async(req, res) => {
 })
 
 // -------------------------
+// [PUT] Exercises (bulk update)
+// Body: array of { exercise_id, name, primary_muscle }
+// return array of updated rows
+// -------------------------
+router.put('/', async(req, res, next) => {
+  try {
+    if (!Array.isArray(req.body)) {
+      return res.status(400).json({ error: 'Body must be an array of exercises' });
+    }
+
+    const updatedExercises = [];
+
+    for (let i = 0; i < req.body.length; i++) {
+      const exercise = req.body[i];
+      
+      if (!exercise.exercise_id) {
+        continue;
+      }
+
+      const updateData = {};
+      if (exercise.name) updateData.name = exercise.name;
+      if (exercise.primary_muscle) updateData.primary_muscle = exercise.primary_muscle;
+
+      if (Object.keys(updateData).length > 0) {
+        try {
+          const updated = await prisma.exercises.update({
+            where: { exercise_id: parseInt(exercise.exercise_id) },
+            data: updateData
+          });
+          updatedExercises.push(updated);
+        } catch (error) {
+          if (error.code !== 'P2025') {
+            throw error;
+          }
+        }
+      }
+    }
+
+    res.json(updatedExercises);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+})
+
+// -------------------------
 // [PUT] Exercises 
 // return updated row
 // -------------------------
-router.put('/:id', async(req, res) => {
+router.put('/:id', async(req, res, next) => {
   try {
-    if (!req.body) {
-      return res.status(400).json({ error: 'Request body is missing. Make sure to send JSON data with Content-Type: application/json' });
-    }
-    
     const exerciseId = req.params.id;
 
     const updated = await prisma.exercises.update({

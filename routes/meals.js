@@ -11,15 +11,16 @@ const auth = require('../middleware/auth');
 // [GET] Meals 
 // return array of meals (incl. items + foods + users)
 // -------------------------
-router.get('/', async(req, res) => {
+router.get('/', async(req, res, next) => {
   try {
-    const meals = await prisma.meals.findMany({
+    const data = await prisma.meals.findMany({
       include: {
         meal_items: { include: { foods: true } },
         users: true
-      }
+      },
+      orderBy: { date: 'desc' }
     });
-    res.json(meals);
+    res.json(data);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -30,24 +31,26 @@ router.get('/', async(req, res) => {
 // return created row (with created items)
 // body.items: [{ food_id, quantity }]
 // -------------------------
-router.post('/', auth, async (req, res) => {
+router.post('/', auth, async (req, res, next) => {
   try {
-    console.log('req.user:', req.user);
-    console.log('req.body:', req.body);
-
     const items = Array.isArray(req.body.items) ? req.body.items : [];
 
+    const mealData = {
+      user_id: req.user.user_id,                       
+      date: req.body.date ? new Date(req.body.date) : undefined
+    };
+
+    if (items.length > 0) {
+      mealData.meal_items = {
+        create: items.map(i => ({
+          food_id: i.food_id,
+          quantity: parseFloat(i.quantity) || 100
+        }))
+      };
+    }
+
     const meal = await prisma.meals.create({
-      data: {
-        user_id: req.user.user_id,                       
-        date: req.body.date ? new Date(req.body.date) : undefined,
-        meal_items: {
-          create: items.map(i => ({
-            food_id: i.food_id,
-            quantity: i.quantity
-          }))
-        }
-      },
+      data: mealData,
       include: {
         meal_items: {
           include: { foods: true }
@@ -57,7 +60,6 @@ router.post('/', auth, async (req, res) => {
 
     res.json(meal);
   } catch (error) {
-    console.error(error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -66,7 +68,7 @@ router.post('/', auth, async (req, res) => {
 // [DELETE] Meals 
 // return deleted row
 // -------------------------
-router.delete('/:id', async(req, res) => {
+router.delete('/:id', async(req, res, next) => {
   try {
     const mealId = req.params.id;
 
@@ -82,9 +84,8 @@ router.delete('/:id', async(req, res) => {
 
 // -------------------------
 // [PUT] Meals 
-// return updated row (date only, items beheer je met aparte endpoints of opnieuw posten)
 // -------------------------
-router.put('/:id', async (req, res) => {
+router.put('/:id', async (req, res, next) => {
   try {
     const mealId = req.params.id;
 
@@ -103,4 +104,3 @@ router.put('/:id', async (req, res) => {
 });
 
 module.exports = router;
-
