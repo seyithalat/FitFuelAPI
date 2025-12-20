@@ -6,6 +6,7 @@ var router = express.Router();
 
 const { PrismaClient } = require('../generated/prisma');
 const prisma = new PrismaClient();
+const bcrypt = require('bcrypt');
 const auth = require('../middleware/auth');
 const adminAuth = require('../middleware/admin');
 
@@ -60,7 +61,9 @@ router.put('/users/:id', adminAuth, async (req, res, next) => {
     const updateData = {};
 
     if (req.body.email !== undefined) updateData.email = req.body.email;
-    if (req.body.password !== undefined) updateData.password = req.body.password;
+    if (req.body.password !== undefined) {
+      updateData.password = await bcrypt.hash(req.body.password, 10);
+    }
     if (req.body.is_admin !== undefined) updateData.is_admin = req.body.is_admin;
 
     const updated = await prisma.users.update({

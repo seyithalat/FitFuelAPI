@@ -7,6 +7,7 @@ var router = express.Router();
 const { PrismaClient } = require('../generated/prisma');
 const prisma = new PrismaClient();
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
 const auth = require('../middleware/auth');
 
 // -------------------------
@@ -39,8 +40,9 @@ router.post('/', async(req, res, next) => {
     if (exists.length > 0) {
       res.json({ "status": "user already in database" })
     } else {
+      const hashedPassword = await bcrypt.hash(password, 10);
       const newUser = await prisma.users.create({
-        data: { email, password, is_admin }
+        data: { email, password: hashedPassword, is_admin }
       });
       res.json(newUser);
     }
@@ -104,7 +106,9 @@ router.put('/:id', async(req, res, next) => {
 
     const updateData = {};
     if (typeof email !== 'undefined') updateData.email = email;
-    if (typeof password !== 'undefined') updateData.password = password;
+    if (typeof password !== 'undefined') {
+      updateData.password = await bcrypt.hash(password, 10);
+    }
     if (typeof is_admin !== 'undefined') updateData.is_admin = is_admin;
 
     if (Object.keys(updateData).length === 0) {
@@ -148,12 +152,16 @@ router.post('/login', async (req, res, next) => {
 
     const user = await prisma.users.findFirst({
       where: {
-        email: email,
-        password: password    // plain text, zelfde als je huidige registratie
+        email: email
       }
     });
 
     if (!user) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    const passwordMatch = await bcrypt.compare(password, user.password);
+    if (!passwordMatch) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
