@@ -211,44 +211,238 @@ router.post('/freestyle', auth, async (req, res, next) => {
 
 // -------------------------
 // [POST] /ai/recipes
+// Generate a balanced meal (not just random ingredients)
 // -------------------------
 router.post('/recipes', async (req, res, next) => {
   try {
     const targetKcal = parseInt(req.body.target_kcal) || 600;
-    const foods = await prisma.foods.findMany({ take: 100 });
+    const allFoods = await prisma.foods.findMany({ take: 200 });
 
-    foods.sort((a, b) => a.kcal - b.kcal);
-    const meal = [];
-    let total = 0;
-
-    for (let i = 0; i < foods.length; i++) {
-      const f = foods[i];
-      if (total + f.kcal <= targetKcal) {
-        meal.push({
-          name: f.name,
-          quantity: 1,
-          kcal: f.kcal,
-          carbs: f.carbs,
-          protein: f.protein,
-          fat: f.fat
-        });
-        total += f.kcal;
-      }
-      if (total >= targetKcal * 0.9) break;
+    if (allFoods.length === 0) {
+      return res.status(400).json({ error: 'No foods available in database' });
     }
 
-    const totals = meal.reduce(
-      (acc, i) => {
-        acc.kcal += i.kcal * i.quantity;
-        acc.carbs += i.carbs * i.quantity;
-        acc.protein += i.protein * i.quantity;
-        acc.fat += i.fat * i.quantity;
-        return acc;
-      },
-      { kcal: 0, carbs: 0, protein: 0, fat: 0 }
-    );
+    // Categorize foods for balanced meal generation
+    const proteins = allFoods.filter(f => f.protein > 10 && f.protein > f.carbs);
+    const carbs = allFoods.filter(f => f.carbs > 15 && f.carbs > f.protein);
+    const vegetables = allFoods.filter(f => f.kcal < 50 && f.carbs < 10);
+    const fats = allFoods.filter(f => f.fat > 5 && f.kcal > 100);
 
-    res.json({ target_kcal: targetKcal, items: meal, totals });
+    // Shuffle arrays for variety
+    const shuffle = (arr) => {
+      const copy = [...arr];
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+      return copy;
+    };
+
+    const shuffledProteins = shuffle(proteins);
+    const shuffledCarbs = shuffle(carbs);
+    const shuffledVegetables = shuffle(vegetables);
+    const shuffledFats = shuffle(fats);
+
+    const mealItems = [];
+    let totalKcal = 0;
+    let totalProtein = 0;
+    let totalCarbs = 0;
+    let totalFat = 0;
+    
+    // Helper to calculate totals (for internal tracking only)
+    const calculateTotals = (food, quantity) => {
+      return {
+        kcal: (food.kcal * quantity / 100),
+        carbs: (food.carbs * quantity / 100),
+        protein: (food.protein * quantity / 100),
+        fat: (food.fat * quantity / 100)
+      };
+    };
+
+    // Target calorie allocation for each component (based on targetKcal)
+    const proteinKcal = targetKcal * 0.35;  // 35% for protein (main component)
+    const carbKcal = targetKcal * 0.40;     // 40% for carbs
+    const vegKcal = targetKcal * 0.15;      // 15% for vegetables
+    const fatKcal = targetKcal * 0.10;      // 10% for fats
+
+    // Helper function to return item in same format as meals endpoint
+    // Returns food object with quantity, just like meal_items with foods
+    const createMealItem = (food, quantityInGrams) => {
+      const quantity = Math.max(1, Math.round(quantityInGrams)); // Ensure at least 1g
+      return {
+        quantity: quantity,
+        foods: {
+          food_id: food.food_id,
+          name: food.name,
+          kcal: food.kcal,
+          carbs: food.carbs,
+          protein: food.protein,
+          fat: food.fat
+        }
+      };
+    };
+
+    // 1. Add a protein source (main component) - calculate quantity based on calories
+    if (shuffledProteins.length > 0) {
+      const protein = shuffledProteins[0];
+      // Validate: kcal should be reasonable (10-500 per 100g for proteins)
+      if (protein.kcal > 0 && protein.kcal >= 10 && protein.kcal <= 500) {
+        // Calculate quantity in grams: (targetKcal / kcalPer100g) * 100
+        const quantityGrams = (proteinKcal / protein.kcal) * 100;
+        const quantity = Math.max(50, Math.min(300, quantityGrams));
+        const item = createMealItem(protein, quantity);
+        mealItems.push(item);
+        const totals = calculateTotals(protein, item.quantity);
+        totalKcal += totals.kcal;
+        totalProtein += totals.protein;
+        totalCarbs += totals.carbs;
+        totalFat += totals.fat;
+      }
+    }
+
+    // 2. Add a carbohydrate source - based on remaining calories
+    if (shuffledCarbs.length > 0 && totalKcal < targetKcal * 0.9) {
+      const carb = shuffledCarbs[0];
+      const remainingKcal = Math.min(carbKcal, targetKcal - totalKcal);
+      // Validate: kcal should be reasonable (50-400 per 100g for carbs)
+      if (remainingKcal > 0 && carb.kcal > 0 && carb.kcal >= 50 && carb.kcal <= 400) {
+        const quantityGrams = (remainingKcal / carb.kcal) * 100;
+        const quantity = Math.max(30, Math.min(200, quantityGrams));
+        const item = createMealItem(carb, quantity);
+        mealItems.push(item);
+        const totals = calculateTotals(carb, item.quantity);
+        totalKcal += totals.kcal;
+        totalProtein += totals.protein;
+        totalCarbs += totals.carbs;
+        totalFat += totals.fat;
+      }
+    }
+
+    // 3. Add vegetables - fill remaining calories
+    if (shuffledVegetables.length > 0 && totalKcal < targetKcal * 0.95) {
+      const veg = shuffledVegetables[0];
+      const remainingKcal = Math.min(vegKcal, targetKcal - totalKcal);
+      // Validate: vegetables should be low calorie (5-50 per 100g)
+      if (remainingKcal > 10 && veg.kcal > 0 && veg.kcal >= 5 && veg.kcal <= 50) {
+        const quantityGrams = (remainingKcal / veg.kcal) * 100;
+        const quantity = Math.max(50, Math.min(300, quantityGrams));
+        const item = createMealItem(veg, quantity);
+        mealItems.push(item);
+        const totals = calculateTotals(veg, item.quantity);
+        totalKcal += totals.kcal;
+        totalProtein += totals.protein;
+        totalCarbs += totals.carbs;
+        totalFat += totals.fat;
+      }
+    }
+
+    // 4. Add healthy fats if needed - to reach target
+    if (shuffledFats.length > 0 && totalKcal < targetKcal * 0.95) {
+      const fat = shuffledFats[0];
+      const remainingKcal = Math.min(fatKcal, targetKcal - totalKcal);
+      // Validate: fats should be high calorie (200-900 per 100g)
+      if (remainingKcal > 5 && fat.kcal > 0 && fat.kcal >= 200 && fat.kcal <= 900) {
+        const quantityGrams = (remainingKcal / fat.kcal) * 100;
+        const quantity = Math.max(10, Math.min(100, quantityGrams));
+        const item = createMealItem(fat, quantity);
+        mealItems.push(item);
+        const totals = calculateTotals(fat, item.quantity);
+        totalKcal += totals.kcal;
+        totalProtein += totals.protein;
+        totalCarbs += totals.carbs;
+        totalFat += totals.fat;
+      }
+    }
+
+    // 5. If still below target, add more items to reach it (within 10% of target)
+    if (totalKcal < targetKcal * 0.9 && mealItems.length < 5) {
+      const remaining = allFoods.filter(f => 
+        !mealItems.some(m => m.foods.food_id === f.food_id) && 
+        f.kcal > 0 && 
+        f.kcal >= 10 && 
+        f.kcal <= 500 // Only use foods with reasonable calorie values
+      );
+      const remainingKcal = targetKcal - totalKcal;
+      
+      for (const food of remaining) {
+        if (totalKcal >= targetKcal * 0.95) break;
+        
+        const quantityGrams = (remainingKcal / food.kcal) * 100;
+        const quantity = Math.max(30, Math.min(150, quantityGrams));
+        const item = createMealItem(food, quantity);
+        mealItems.push(item);
+        const totals = calculateTotals(food, item.quantity);
+        totalKcal += totals.kcal;
+        totalProtein += totals.protein;
+        totalCarbs += totals.carbs;
+        totalFat += totals.fat;
+        
+        if (mealItems.length >= 5) break;
+      }
+    }
+
+    // 6. Scale all items proportionally if we're too far from target (within 5-15% range)
+    if (totalKcal > 0 && (totalKcal < targetKcal * 0.85 || totalKcal > targetKcal * 1.15)) {
+      const scaleFactor = targetKcal / totalKcal;
+      mealItems.forEach(item => {
+        item.quantity = Math.round(item.quantity * scaleFactor);
+      });
+      // Recalculate totals after scaling
+      totalKcal = 0;
+      totalProtein = 0;
+      totalCarbs = 0;
+      totalFat = 0;
+      mealItems.forEach(item => {
+        const totals = calculateTotals(item.foods, item.quantity);
+        totalKcal += totals.kcal;
+        totalProtein += totals.protein;
+        totalCarbs += totals.carbs;
+        totalFat += totals.fat;
+      });
+    }
+
+    // Calculate final totals
+    const totals = {
+      kcal: Math.round(totalKcal * 10) / 10,
+      carbs: Math.round(totalCarbs * 10) / 10,
+      protein: Math.round(totalProtein * 10) / 10,
+      fat: Math.round(totalFat * 10) / 10
+    };
+
+    // Return in format that frontend expects
+    // Frontend calculates: foods.kcal * quantity (without dividing by 100)
+    // So we divide kcal by 100 here so the calculation works: (kcal/100) * quantity = correct
+    const items = mealItems.map(item => {
+      const quantity = Number(item.quantity) || 0;
+      
+      return {
+        food_id: item.foods.food_id,
+        name: item.foods.name,
+        quantity: quantity,
+        // Divide by 100 so frontend calculation (kcal * quantity) gives correct result
+        kcal: (Number(item.foods.kcal) || 0) / 100,  // Divide by 100
+        carbs: (Number(item.foods.carbs) || 0) / 100,
+        protein: (Number(item.foods.protein) || 0) / 100,
+        fat: (Number(item.foods.fat) || 0) / 100,
+        // Also include nested foods for compatibility
+        foods: {
+          food_id: item.foods.food_id,
+          name: item.foods.name,
+          kcal: (Number(item.foods.kcal) || 0) / 100,  // Divide by 100
+          carbs: (Number(item.foods.carbs) || 0) / 100,
+          protein: (Number(item.foods.protein) || 0) / 100,
+          fat: (Number(item.foods.fat) || 0) / 100
+        }
+      };
+    });
+
+    res.json({ 
+      target_kcal: targetKcal, 
+      items: items,  // Frontend expects 'items' array
+      meal_items: mealItems,  // Also include meal_items for consistency
+      totals,
+      meal_name: `Balanced Meal (${mealItems.length} items)`
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
