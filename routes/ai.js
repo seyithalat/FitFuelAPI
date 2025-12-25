@@ -244,14 +244,14 @@ router.post('/recipes', async (req, res, next) => {
     const shuffledFats = shuffle(fats);
 
     const mealItems = [];
-    const usedFoodIds = new Set(); // Track used food IDs to prevent duplicates
+    const usedFoodIds = new Set(); // om duplicaten te voorkomen
     let totalKcal = 0;
     let totalProtein = 0;
     let totalCarbs = 0;
     let totalFat = 0;
     
-    // Helper to calculate totals (for internal tracking only)
-    const calculateTotals = (food, quantity) => {
+    // bereken totaal voor een food item
+    const calcTotals = (food, quantity) => {
       return {
         kcal: (food.kcal * quantity / 100),
         carbs: (food.carbs * quantity / 100),
@@ -260,16 +260,15 @@ router.post('/recipes', async (req, res, next) => {
       };
     };
 
-    // Target calorie allocation for each component (based on targetKcal)
-    const proteinKcal = targetKcal * 0.35;  // 35% for protein (main component)
-    const carbKcal = targetKcal * 0.40;     // 40% for carbs
-    const vegKcal = targetKcal * 0.15;      // 15% for vegetables
-    const fatKcal = targetKcal * 0.10;      // 10% for fats
+    // verdeel calorieën over verschillende componenten
+    const proteinKcal = targetKcal * 0.35;
+    const carbKcal = targetKcal * 0.40;
+    const vegKcal = targetKcal * 0.15;
+    const fatKcal = targetKcal * 0.10;
 
-    // Helper function to return item in same format as meals endpoint
-    // Returns food object with quantity, just like meal_items with foods
-    const createMealItem = (food, quantityInGrams) => {
-      const quantity = Math.max(1, Math.round(quantityInGrams)); // Ensure at least 1g
+    // maak meal item object
+    const makeMealItem = (food, quantityInGrams) => {
+      const quantity = Math.max(1, Math.round(quantityInGrams));
       return {
         quantity: quantity,
         foods: {
@@ -283,18 +282,16 @@ router.post('/recipes', async (req, res, next) => {
       };
     };
 
-    // 1. Add a protein source (main component) - calculate quantity based on calories
+    // voeg eiwit toe
     if (shuffledProteins.length > 0) {
       const protein = shuffledProteins.find(p => !usedFoodIds.has(p.food_id)) || shuffledProteins[0];
-      // Validate: kcal should be reasonable (10-500 per 100g for proteins)
       if (protein && protein.kcal > 0 && protein.kcal >= 10 && protein.kcal <= 500) {
-        // Calculate quantity in grams: (targetKcal / kcalPer100g) * 100
         const quantityGrams = (proteinKcal / protein.kcal) * 100;
         const quantity = Math.max(50, Math.min(300, quantityGrams));
-        const item = createMealItem(protein, quantity);
+        const item = makeMealItem(protein, quantity);
         mealItems.push(item);
         usedFoodIds.add(protein.food_id);
-        const totals = calculateTotals(protein, item.quantity);
+        const totals = calcTotals(protein, item.quantity);
         totalKcal += totals.kcal;
         totalProtein += totals.protein;
         totalCarbs += totals.carbs;
@@ -302,18 +299,17 @@ router.post('/recipes', async (req, res, next) => {
       }
     }
 
-    // 2. Add a carbohydrate source - based on remaining calories
+    // voeg koolhydraten toe
     if (shuffledCarbs.length > 0 && totalKcal < targetKcal * 0.9) {
       const carb = shuffledCarbs.find(c => !usedFoodIds.has(c.food_id)) || shuffledCarbs[0];
       const remainingKcal = Math.min(carbKcal, targetKcal - totalKcal);
-      // Validate: kcal should be reasonable (50-400 per 100g for carbs)
       if (carb && remainingKcal > 0 && carb.kcal > 0 && carb.kcal >= 50 && carb.kcal <= 400) {
         const quantityGrams = (remainingKcal / carb.kcal) * 100;
         const quantity = Math.max(30, Math.min(200, quantityGrams));
-        const item = createMealItem(carb, quantity);
+        const item = makeMealItem(carb, quantity);
         mealItems.push(item);
         usedFoodIds.add(carb.food_id);
-        const totals = calculateTotals(carb, item.quantity);
+        const totals = calcTotals(carb, item.quantity);
         totalKcal += totals.kcal;
         totalProtein += totals.protein;
         totalCarbs += totals.carbs;
@@ -321,18 +317,17 @@ router.post('/recipes', async (req, res, next) => {
       }
     }
 
-    // 3. Add vegetables - fill remaining calories
+    // voeg groenten toe
     if (shuffledVegetables.length > 0 && totalKcal < targetKcal * 0.95) {
       const veg = shuffledVegetables.find(v => !usedFoodIds.has(v.food_id)) || shuffledVegetables[0];
       const remainingKcal = Math.min(vegKcal, targetKcal - totalKcal);
-      // Validate: vegetables should be low calorie (5-50 per 100g)
       if (veg && remainingKcal > 10 && veg.kcal > 0 && veg.kcal >= 5 && veg.kcal <= 50) {
         const quantityGrams = (remainingKcal / veg.kcal) * 100;
         const quantity = Math.max(50, Math.min(300, quantityGrams));
-        const item = createMealItem(veg, quantity);
+        const item = makeMealItem(veg, quantity);
         mealItems.push(item);
         usedFoodIds.add(veg.food_id);
-        const totals = calculateTotals(veg, item.quantity);
+        const totals = calcTotals(veg, item.quantity);
         totalKcal += totals.kcal;
         totalProtein += totals.protein;
         totalCarbs += totals.carbs;
@@ -340,18 +335,17 @@ router.post('/recipes', async (req, res, next) => {
       }
     }
 
-    // 4. Add healthy fats if needed - to reach target
+    // voeg vetten toe als nodig
     if (shuffledFats.length > 0 && totalKcal < targetKcal * 0.95) {
       const fat = shuffledFats.find(f => !usedFoodIds.has(f.food_id)) || shuffledFats[0];
       const remainingKcal = Math.min(fatKcal, targetKcal - totalKcal);
-      // Validate: fats should be high calorie (200-900 per 100g)
       if (fat && remainingKcal > 5 && fat.kcal > 0 && fat.kcal >= 200 && fat.kcal <= 900) {
         const quantityGrams = (remainingKcal / fat.kcal) * 100;
         const quantity = Math.max(10, Math.min(100, quantityGrams));
-        const item = createMealItem(fat, quantity);
+        const item = makeMealItem(fat, quantity);
         mealItems.push(item);
         usedFoodIds.add(fat.food_id);
-        const totals = calculateTotals(fat, item.quantity);
+        const totals = calcTotals(fat, item.quantity);
         totalKcal += totals.kcal;
         totalProtein += totals.protein;
         totalCarbs += totals.carbs;
@@ -359,13 +353,13 @@ router.post('/recipes', async (req, res, next) => {
       }
     }
 
-    // 5. If still below target, add more items to reach it (within 10% of target)
+    // als nog niet genoeg calorieën, voeg meer items toe
     if (totalKcal < targetKcal * 0.9 && mealItems.length < 5) {
       const remaining = allFoods.filter(f => 
         !usedFoodIds.has(f.food_id) && 
         f.kcal > 0 && 
         f.kcal >= 10 && 
-        f.kcal <= 500 // Only use foods with reasonable calorie values
+        f.kcal <= 500
       );
       const remainingKcal = targetKcal - totalKcal;
       
@@ -374,10 +368,10 @@ router.post('/recipes', async (req, res, next) => {
         
         const quantityGrams = (remainingKcal / food.kcal) * 100;
         const quantity = Math.max(30, Math.min(150, quantityGrams));
-        const item = createMealItem(food, quantity);
+        const item = makeMealItem(food, quantity);
         mealItems.push(item);
         usedFoodIds.add(food.food_id);
-        const totals = calculateTotals(food, item.quantity);
+        const totals = calcTotals(food, item.quantity);
         totalKcal += totals.kcal;
         totalProtein += totals.protein;
         totalCarbs += totals.carbs;
@@ -393,13 +387,13 @@ router.post('/recipes', async (req, res, next) => {
       mealItems.forEach(item => {
         item.quantity = Math.round(item.quantity * scaleFactor);
       });
-      // Recalculate totals after scaling
+      // herbereken totalen
       totalKcal = 0;
       totalProtein = 0;
       totalCarbs = 0;
       totalFat = 0;
       mealItems.forEach(item => {
-        const totals = calculateTotals(item.foods, item.quantity);
+        const totals = calcTotals(item.foods, item.quantity);
         totalKcal += totals.kcal;
         totalProtein += totals.protein;
         totalCarbs += totals.carbs;
@@ -407,7 +401,7 @@ router.post('/recipes', async (req, res, next) => {
       });
     }
 
-    // Calculate final totals
+    // bereken eindtotalen
     const totals = {
       kcal: Math.round(totalKcal * 10) / 10,
       carbs: Math.round(totalCarbs * 10) / 10,
@@ -415,9 +409,7 @@ router.post('/recipes', async (req, res, next) => {
       fat: Math.round(totalFat * 10) / 10
     };
 
-    // Return in format that frontend expects
-    // Frontend calculates: foods.kcal * quantity (without dividing by 100)
-    // So we divide kcal by 100 here so the calculation works: (kcal/100) * quantity = correct
+    // format voor frontend (kcal moet gedeeld worden door 100)
     const items = mealItems.map(item => {
       const quantity = Number(item.quantity) || 0;
       
@@ -425,16 +417,14 @@ router.post('/recipes', async (req, res, next) => {
         food_id: item.foods.food_id,
         name: item.foods.name,
         quantity: quantity,
-        // Divide by 100 so frontend calculation (kcal * quantity) gives correct result
-        kcal: (Number(item.foods.kcal) || 0) / 100,  // Divide by 100
+        kcal: (Number(item.foods.kcal) || 0) / 100,
         carbs: (Number(item.foods.carbs) || 0) / 100,
         protein: (Number(item.foods.protein) || 0) / 100,
         fat: (Number(item.foods.fat) || 0) / 100,
-        // Also include nested foods for compatibility
         foods: {
           food_id: item.foods.food_id,
           name: item.foods.name,
-          kcal: (Number(item.foods.kcal) || 0) / 100,  // Divide by 100
+          kcal: (Number(item.foods.kcal) || 0) / 100,
           carbs: (Number(item.foods.carbs) || 0) / 100,
           protein: (Number(item.foods.protein) || 0) / 100,
           fat: (Number(item.foods.fat) || 0) / 100
@@ -444,8 +434,8 @@ router.post('/recipes', async (req, res, next) => {
 
     res.json({ 
       target_kcal: targetKcal, 
-      items: items,  // Frontend expects 'items' array
-      meal_items: mealItems,  // Also include meal_items for consistency
+      items: items,
+      meal_items: mealItems,
       totals,
       meal_name: `Balanced Meal (${mealItems.length} items)`
     });

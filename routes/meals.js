@@ -66,8 +66,7 @@ router.post('/', auth, async (req, res, next) => {
 
 // -------------------------
 // [DELETE] Meal Item
-// Delete a specific meal item from a meal
-// NOTE: This route must be defined BEFORE /:id to avoid route matching conflicts
+// Deze route moet VOOR /:id staan anders werkt het niet goed
 // -------------------------
 router.delete('/:mealId/items/:itemId', auth, async (req, res, next) => {
   try {

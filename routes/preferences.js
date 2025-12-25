@@ -8,7 +8,6 @@ const prisma = new PrismaClient();
 
 // -------------------------
 // [GET] /preferences/:userId
-// Returns preferences or empty defaults
 // -------------------------
 router.get('/:userId', async (req, res, next) => {
   try {
@@ -28,7 +27,7 @@ router.get('/:userId', async (req, res, next) => {
       });
     }
 
-    // Parse liked_exercises and disliked_foods from strings to arrays
+    // zet strings om naar arrays
     const likedExercises = row.liked_exercises 
       ? row.liked_exercises.split(',').map(s => s.trim()).filter(Boolean)
       : [];
@@ -58,7 +57,6 @@ router.get('/:userId', async (req, res, next) => {
 
 // -------------------------
 // [PUT] /preferences/:userId
-// Body merges into existing preferences
 // -------------------------
 router.put('/:userId', async (req, res, next) => {
   try {
@@ -88,7 +86,7 @@ router.put('/:userId', async (req, res, next) => {
       diet_type: req.body.diet_type || undefined
     };
 
-    // Remove undefined values
+    // verwijder undefined waarden
     Object.keys(updateData).forEach(key => {
       if (updateData[key] === undefined) {
         delete updateData[key];
@@ -110,7 +108,7 @@ router.put('/:userId', async (req, res, next) => {
       });
     }
 
-    // Parse back to arrays for response
+    // zet terug om naar arrays
     const likedExercises = saved.liked_exercises 
       ? saved.liked_exercises.split(',').map(s => s.trim()).filter(Boolean)
       : [];
