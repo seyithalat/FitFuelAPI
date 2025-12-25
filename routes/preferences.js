@@ -22,7 +22,8 @@ router.get('/:userId', async (req, res, next) => {
           macros: { protein: 120, carbs: 200, fat: 70 },
           liked_exercises: [],
           disliked_foods: [],
-          days_per_week: 3
+          days_per_week: 3,
+          diet_type: 'balanced'
         }
       });
     }
@@ -38,11 +39,16 @@ router.get('/:userId', async (req, res, next) => {
     res.json({
       user_id: userId,
       preferences: {
-        kcal_target: 2000, // Default since not in schema
-        macros: { protein: 120, carbs: 200, fat: 70 }, // Default since not in schema
+        kcal_target: row.kcal_target || 2000,
+        macros: { 
+          protein: row.protein_target || 120, 
+          carbs: row.carbs_target || 200, 
+          fat: row.fat_target || 70 
+        },
         liked_exercises: likedExercises,
         disliked_foods: dislikedFoods,
-        days_per_week: 3 // Default since not in schema
+        days_per_week: row.days_per_week || 3,
+        diet_type: row.diet_type || 'balanced'
       }
     });
   } catch (error) {
@@ -71,21 +77,35 @@ router.put('/:userId', async (req, res, next) => {
 
     const existing = await prisma.preferences.findFirst({ where: { user_id: userId } });
     
+    const updateData = {
+      liked_exercises: liked,
+      disliked_foods: disliked,
+      kcal_target: req.body.kcal_target != null ? parseInt(req.body.kcal_target) : undefined,
+      protein_target: req.body.macros?.protein != null ? parseFloat(req.body.macros.protein) : undefined,
+      carbs_target: req.body.macros?.carbs != null ? parseFloat(req.body.macros.carbs) : undefined,
+      fat_target: req.body.macros?.fat != null ? parseFloat(req.body.macros.fat) : undefined,
+      days_per_week: req.body.days_per_week != null ? parseInt(req.body.days_per_week) : undefined,
+      diet_type: req.body.diet_type || undefined
+    };
+
+    // Remove undefined values
+    Object.keys(updateData).forEach(key => {
+      if (updateData[key] === undefined) {
+        delete updateData[key];
+      }
+    });
+    
     let saved;
     if (existing) {
       saved = await prisma.preferences.update({
         where: { preference_id: existing.preference_id },
-        data: {
-          liked_exercises: liked,
-          disliked_foods: disliked
-        }
+        data: updateData
       });
     } else {
       saved = await prisma.preferences.create({
         data: {
           user_id: userId,
-          liked_exercises: liked,
-          disliked_foods: disliked
+          ...updateData
         }
       });
     }
@@ -101,11 +121,16 @@ router.put('/:userId', async (req, res, next) => {
     res.json({
       user_id: userId,
       preferences: {
-        kcal_target: 2000, // Default since not in schema
-        macros: { protein: 120, carbs: 200, fat: 70 }, // Default since not in schema
+        kcal_target: saved.kcal_target || 2000,
+        macros: { 
+          protein: saved.protein_target || 120, 
+          carbs: saved.carbs_target || 200, 
+          fat: saved.fat_target || 70 
+        },
         liked_exercises: likedExercises,
         disliked_foods: dislikedFoods,
-        days_per_week: 3 // Default since not in schema
+        days_per_week: saved.days_per_week || 3,
+        diet_type: saved.diet_type || 'balanced'
       }
     });
   } catch (error) {

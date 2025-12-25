@@ -51,6 +51,12 @@ model preferences {
   user_id         Int
   liked_exercises String? @db.VarChar(255)
   disliked_foods  String? @db.VarChar(255)
+  kcal_target     Int?    @default(2000)
+  protein_target  Float?  @db.Float
+  carbs_target    Float?  @db.Float
+  fat_target      Float?  @db.Float
+  days_per_week   Int?    @default(3)
+  diet_type       String? @db.VarChar(50)
   users           users   @relation(fields: [user_id], references: [user_id], onDelete: Cascade, map: "preferences_ibfk_1")
 
   @@index([user_id], map: "user_id")

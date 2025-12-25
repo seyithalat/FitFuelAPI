@@ -65,6 +65,47 @@ router.post('/', auth, async (req, res, next) => {
 });
 
 // -------------------------
+// [DELETE] Meal Item
+// Delete a specific meal item from a meal
+// NOTE: This route must be defined BEFORE /:id to avoid route matching conflicts
+// -------------------------
+router.delete('/:mealId/items/:itemId', auth, async (req, res, next) => {
+  try {
+    const mealId = parseInt(req.params.mealId);
+    const itemId = parseInt(req.params.itemId);
+
+    // First verify the meal belongs to the user
+    const meal = await prisma.meals.findUnique({
+      where: { meal_id: mealId },
+      include: { meal_items: true }
+    });
+
+    if (!meal) {
+      return res.status(404).json({ error: 'Meal not found' });
+    }
+
+    if (meal.user_id !== req.user.user_id) {
+      return res.status(403).json({ error: 'Not authorized to delete this meal item' });
+    }
+
+    // Verify the item belongs to this meal
+    const item = meal.meal_items.find(item => item.meal_item_id === itemId);
+    if (!item) {
+      return res.status(404).json({ error: 'Meal item not found' });
+    }
+
+    // Delete the meal item
+    const deleted = await prisma.meal_items.delete({
+      where: { meal_item_id: itemId }
+    });
+
+    res.json(deleted);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// -------------------------
 // [DELETE] Meals 
 // return deleted row
 // -------------------------
